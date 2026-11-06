@@ -7,7 +7,7 @@ import numpy as np
 CYCLE_SEC = 2.5
 YAW_AMP = 24.0
 KNEE_STANCE = 25.0  # 立ち姿勢のスネ開き角 [deg]
-KNEE_LIFT = 28.0
+KNEE_LIFT = 48.0    # 足上げ [deg] (約43mm上がる)
 SWING_DUTY = 0.20
 STANCE_SMOOTH = 0.50
 BODY_TILT = 4.0
