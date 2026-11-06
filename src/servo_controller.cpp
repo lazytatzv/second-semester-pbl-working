@@ -1,71 +1,49 @@
 #include "servo_controller.h"
-#include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
 
-static Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
-ServoController servoCtrl;
+static Adafruit_PWMServoDriver pwm;
 
-ServoController::ServoController() {}
+static void write(uint8_t ch, float deg) {
+  deg = constrain(deg, 0.0f, 180.0f);
+  pwm.setPWM(ch, 0, map((long)(deg * 10), 0, 1800, SERVO_MIN_PULSE, SERVO_MAX_PULSE));
+}
 
-void ServoController::init() {
+namespace servo {
+
+void init() {
   pwm.begin();
-  pwm.setPWMFreq(50); // アナログサーボ標準 50Hz
-  setStandbyPose();
+  pwm.setPWMFreq(50);
+  standby();
 }
 
-void ServoController::writeServo(uint8_t channel, float angleDeg) {
-  angleDeg = constrain(angleDeg, 0.0f, 180.0f);
-  int pulse = map((long)(angleDeg * 10), 0, 1800, SERVO_MIN_PULSE, SERVO_MAX_PULSE);
-  pwm.setPWM(channel, 0, pulse);
+void setLeg(uint8_t i, float yawDeg, float kneeDeg) {
+  const LegConfig& leg = LEGS[i];
+  write(leg.chYaw,  yawDeg  + leg.yawTrim);
+  write(leg.chKnee, kneeDeg + leg.kneeTrim);
 }
 
-void ServoController::setStandbyPose() {
-  for (uint8_t i = 0; i < 4; i++) {
-    setLegAngle(i, SERVO_NEUTRAL, SERVO_NEUTRAL);
-  }
+void standby() {
+  for (uint8_t i = 0; i < 4; i++) setLeg(i, NEUTRAL, NEUTRAL);
 }
 
-void ServoController::setLegAngle(uint8_t legIdx, float yawDeg, float kneeDeg) {
-  if (legIdx >= 4) return;
-  const LegConfig &leg = LEGS[legIdx];
-  writeServo(leg.chYaw,  yawDeg  + leg.yawTrim);
-  writeServo(leg.chKnee, kneeDeg + leg.kneeTrim);
-}
-
-void ServoController::runSelfCheck() {
-  Serial.println(F("\n--- Starting Servo Self-Check ---"));
-  setStandbyPose();
+// 1本ずつ足を上げて前後に振る
+void selfCheck() {
+  Serial.println(F("--- Self-check ---"));
+  standby();
   delay(500);
 
   for (uint8_t i = 0; i < 4; i++) {
-    const LegConfig &leg = LEGS[i];
-    Serial.print(F("Testing Leg ["));
-    Serial.print(leg.name);
-    Serial.print(F("] (Yaw CH:"));
-    Serial.print(leg.chYaw);
-    Serial.print(F(", Knee CH:"));
-    Serial.print(leg.chKnee);
-    Serial.println(F(")..."));
+    const LegConfig& leg = LEGS[i];
+    Serial.print(F("Leg "));
+    Serial.println(leg.name);
 
-    // 1. 膝を持ち上げる
-    float liftedKnee = SERVO_NEUTRAL + leg.kneeDir * 35.0f;
-    setLegAngle(i, SERVO_NEUTRAL, liftedKnee);
-    delay(400);
-
-    // 2. 付け根(Yaw)を前後に振る
-    float fwdYaw = SERVO_NEUTRAL + leg.yawDir * 25.0f;
-    setLegAngle(i, fwdYaw, liftedKnee);
-    delay(300);
-
-    float backYaw = SERVO_NEUTRAL - leg.yawDir * 25.0f;
-    setLegAngle(i, backYaw, liftedKnee);
-    delay(300);
-
-    // 3. 元の位置へ着地
-    setLegAngle(i, SERVO_NEUTRAL, SERVO_NEUTRAL);
-    delay(300);
+    float knee = NEUTRAL + leg.kneeDir * 35.0f;
+    setLeg(i, NEUTRAL, knee);                       delay(400);
+    setLeg(i, NEUTRAL + leg.yawDir * 25.0f, knee);  delay(300);
+    setLeg(i, NEUTRAL - leg.yawDir * 25.0f, knee);  delay(300);
+    setLeg(i, NEUTRAL, NEUTRAL);                    delay(300);
   }
+  Serial.println(F("--- Done ---"));
+}
 
-  Serial.println(F("--- Self-Check Complete! Standing by. ---\n"));
-  setStandbyPose();
 }

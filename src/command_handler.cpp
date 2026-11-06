@@ -2,131 +2,70 @@
 #include "gait_controller.h"
 #include "servo_controller.h"
 
-CommandHandler cmdHandler;
+namespace cmd {
 
-CommandHandler::CommandHandler() : rxIndex(0) {
-  memset(rxBuffer, 0, sizeof(rxBuffer));
+static char buf[32];
+static uint8_t len = 0;
+
+static void printHelp() {
+  Serial.println(F(
+    "\n--- Commands ---\n"
+    " start / stop / stand / check\n"
+    " fwd / back / left / right\n"
+    " speed <-1..1> / turn <-1..1>\n"
+    " status / help\n"));
 }
 
-void CommandHandler::init() {
-  rxIndex = 0;
-  printHelp();
+static void printStatus() {
+  Serial.print(gait::walking ? F("WALK") : F("STANDBY"));
+  Serial.print(F("  speed=")); Serial.print(gait::speed, 2);
+  Serial.print(F("  turn="));  Serial.print(gait::turn, 2);
+  Serial.print(F("  phase=")); Serial.println(gait::phase, 3);
 }
 
-void CommandHandler::printHelp() {
-  Serial.println(F("\n========================================"));
-  Serial.println(F(" 🕷️ 4-Leg Spider Robot Command Menu"));
-  Serial.println(F("========================================"));
-  Serial.println(F(" [Motion Commands]"));
-  Serial.println(F("  start       : Start walking forward"));
-  Serial.println(F("  stop        : Stop walking (standby)"));
-  Serial.println(F("  stand       : Reset to neutral stand pose"));
-  Serial.println(F("  check       : Run servo self-check (all legs)"));
-  Serial.println(F(" [Direction & Speed]"));
-  Serial.println(F("  fwd         : Set direction Forward"));
-  Serial.println(F("  back        : Set direction Backward"));
-  Serial.println(F("  left        : Turn Left"));
-  Serial.println(F("  right       : Turn Right"));
-  Serial.println(F("  speed <val> : Set speed (-1.0 to 1.0)"));
-  Serial.println(F("  turn <val>  : Set turn (-1.0 to 1.0)"));
-  Serial.println(F(" [Info]"));
-  Serial.println(F("  status      : Print current robot state"));
-  Serial.println(F("  help / ?    : Show this help"));
-  Serial.println(F("========================================\n"));
+static void walk(float speed, float turn) {
+  gait::setSpeed(speed);
+  gait::setTurn(turn);
+  if (!gait::walking) gait::start();
 }
 
-void CommandHandler::printStatus() {
-  Serial.println(F("\n--- Robot Telemetry ---"));
-  Serial.print(F(" State: "));
-  Serial.println(gaitCtrl.getState() == STATE_WALK ? F("WALKING") : F("STANDBY"));
-  Serial.print(F(" Speed: "));
-  Serial.println(gaitCtrl.getSpeed(), 2);
-  Serial.print(F(" Turn : "));
-  Serial.println(gaitCtrl.getTurn(), 2);
-  Serial.print(F(" Phase: "));
-  Serial.println(gaitCtrl.getPhase(), 3);
-  Serial.println(F("-----------------------\n"));
-}
+static bool is(const char* s, const char* name) { return strcasecmp(s, name) == 0; }
 
-void CommandHandler::processCommand(char* cmd) {
-  // 前後の空白を除去
-  while (*cmd == ' ' || *cmd == '\t') cmd++;
-  int len = strlen(cmd);
-  while (len > 0 && (cmd[len - 1] == ' ' || cmd[len - 1] == '\r' || cmd[len - 1] == '\n')) {
-    cmd[--len] = '\0';
-  }
-  if (len == 0) return;
+static void run(char* s) {
+  while (*s == ' ') s++;
+  if (!*s) return;
 
-  // コマンド判定
-  if (strcasecmp(cmd, "start") == 0) {
-    gaitCtrl.start();
-  }
-  else if (strcasecmp(cmd, "stop") == 0) {
-    gaitCtrl.stop();
-  }
-  else if (strcasecmp(cmd, "stand") == 0) {
-    gaitCtrl.stand();
-  }
-  else if (strcasecmp(cmd, "check") == 0) {
-    gaitCtrl.stop();
-    servoCtrl.runSelfCheck();
-  }
-  else if (strcasecmp(cmd, "fwd") == 0) {
-    gaitCtrl.setSpeed(1.0f);
-    gaitCtrl.setTurn(0.0f);
-    if (gaitCtrl.getState() != STATE_WALK) gaitCtrl.start();
-  }
-  else if (strcasecmp(cmd, "back") == 0) {
-    gaitCtrl.setSpeed(-1.0f);
-    gaitCtrl.setTurn(0.0f);
-    if (gaitCtrl.getState() != STATE_WALK) gaitCtrl.start();
-  }
-  else if (strcasecmp(cmd, "left") == 0) {
-    gaitCtrl.setTurn(-0.8f);
-    if (gaitCtrl.getState() != STATE_WALK) gaitCtrl.start();
-  }
-  else if (strcasecmp(cmd, "right") == 0) {
-    gaitCtrl.setTurn(0.8f);
-    if (gaitCtrl.getState() != STATE_WALK) gaitCtrl.start();
-  }
-  else if (strncasecmp(cmd, "speed", 5) == 0) {
-    float val = atof(cmd + 5);
-    gaitCtrl.setSpeed(val);
-  }
-  else if (strncasecmp(cmd, "turn", 4) == 0) {
-    float val = atof(cmd + 4);
-    gaitCtrl.setTurn(val);
-  }
-  else if (strcasecmp(cmd, "status") == 0) {
-    printStatus();
-  }
-  else if (strcasecmp(cmd, "help") == 0 || strcmp(cmd, "?") == 0) {
-    printHelp();
-  }
+  if      (is(s, "start"))  gait::start();
+  else if (is(s, "stop") || is(s, "stand")) gait::stop();
+  else if (is(s, "check"))  { gait::stop(); servo::selfCheck(); }
+  else if (is(s, "fwd"))    walk(1.0f, 0.0f);
+  else if (is(s, "back"))   walk(-1.0f, 0.0f);
+  else if (is(s, "left"))   walk(gait::speed, -0.8f);
+  else if (is(s, "right"))  walk(gait::speed, 0.8f);
+  else if (!strncasecmp(s, "speed", 5)) { gait::setSpeed(atof(s + 5)); printStatus(); }
+  else if (!strncasecmp(s, "turn", 4))  { gait::setTurn(atof(s + 4));  printStatus(); }
+  else if (is(s, "status")) printStatus();
+  else if (is(s, "help") || is(s, "?")) printHelp();
   else {
-    Serial.print(F("Unknown command: '"));
-    Serial.print(cmd);
-    Serial.println(F("'. Type 'help' for command list."));
+    Serial.print(F("Unknown: "));
+    Serial.println(s);
   }
 }
 
-void CommandHandler::update() {
-  while (Serial.available() > 0) {
-    char c = (char)Serial.read();
+void init() { printHelp(); }
 
+void update() {
+  while (Serial.available()) {
+    char c = Serial.read();
     if (c == '\n' || c == '\r') {
-      if (rxIndex > 0) {
-        rxBuffer[rxIndex] = '\0';
-        processCommand(rxBuffer);
-        rxIndex = 0;
-      }
-    } else {
-      if (rxIndex < BUF_SIZE - 1) {
-        rxBuffer[rxIndex++] = c;
-      } else {
-        // バッファオーバーフロー防止
-        rxIndex = 0;
-      }
+      while (len && buf[len - 1] == ' ') len--;
+      buf[len] = '\0';
+      run(buf);
+      len = 0;
+    } else if (len < sizeof(buf) - 1) {
+      buf[len++] = c;
     }
   }
+}
+
 }

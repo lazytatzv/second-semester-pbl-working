@@ -387,17 +387,28 @@ function calculateLegAngles(legIdx, currentPhase, speed, turn, rollTilt) {
   };
 }
 
+const SHIFT_DUTY = 0.05; // 遊脚の前後で体重移動を出し入れする位相幅
+
+// 遊脚中は 1、その前後 SHIFT_DUTY でコサインで出し入れする重み
+function shiftWeight(u) {
+  const d = params.swingDuty;
+  if (u < d) return 1.0;
+  if (SHIFT_DUTY <= 0) return 0.0;
+  if (u < d + SHIFT_DUTY) return 0.5 * (1 + Math.cos(Math.PI * (u - d) / SHIFT_DUTY));
+  if (u >= 1.0 - SHIFT_DUTY) return 0.5 * (1 - Math.cos(Math.PI * (u - (1.0 - SHIFT_DUTY)) / SHIFT_DUTY));
+  return 0.0;
+}
+
+// 遊脚の反対側へ体を傾ける。足を上げる前に傾け終わっておく
 function calculateCurrentRollTilt(currentPhase) {
+  let t = 0.0;
   for (let i = 0; i < 4; i++) {
     let u = currentPhase + LEGS[i].offset;
     if (u >= 1.0) u -= 1.0;
-    if (u < params.swingDuty) {
-      const weight = Math.sin(Math.PI * (u / params.swingDuty));
-      const tiltDir = (i % 2 === 0) ? -1.0 : +1.0;
-      return tiltDir * params.bodyTilt * weight;
-    }
+    const tiltDir = (i % 2 === 0) ? -1.0 : +1.0;
+    t += tiltDir * shiftWeight(u);
   }
-  return 0.0;
+  return params.bodyTilt * Math.max(-1.0, Math.min(1.0, t));
 }
 
 // 支持多角形の最短距離 (安定余裕)

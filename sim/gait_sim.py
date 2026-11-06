@@ -1,4 +1,4 @@
-"""main.cpp の歩容(クロール)の軌道シミュレータ(機体座標)。
+"""gait_controller.cpp の歩容(クロール)の軌道シミュレータ(機体座標)。
 実行: python sim/gait_sim.py   -> sim/gait.png, sim/gait.gif を出力
 パラメータ・歩容式は gait_core.py。
 """
