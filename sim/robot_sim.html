@@ -266,14 +266,6 @@
 
     <div class="control-group">
       <div class="control-label">
-        <span>体重移動量 (BODY_TILT)</span>
-        <span id="valBodyTilt">4.0°</span>
-      </div>
-      <input type="range" id="sliderBodyTilt" min="0" max="10" step="0.5" value="4.0">
-    </div>
-
-    <div class="control-group">
-      <div class="control-label">
         <span>遊脚比率 (SWING_DUTY)</span>
         <span id="valDuty">0.20</span>
       </div>
@@ -319,9 +311,7 @@ let params = {
   cycleSec: 2.5,
   yawAmp: 24.0,
   kneeLift: 48.0,
-  bodyTilt: 4.0,
   swingDuty: 0.20,
-  stanceSmooth: 0.50,
   speed: 1.0,
   turn: 0.0,
   playing: true
@@ -337,7 +327,7 @@ let lastTime = performance.now();
 // =============================================================================
 // main.cpp と完全に一致する CPG 角度計算ロジック
 // =============================================================================
-function calculateLegAngles(legIdx, currentPhase, speed, turn, rollTilt) {
+function calculateLegAngles(legIdx, currentPhase, speed, turn) {
   const leg = LEGS[legIdx];
 
   let u = currentPhase + leg.offset;
@@ -354,9 +344,9 @@ function calculateLegAngles(legIdx, currentPhase, speed, turn, rollTilt) {
     normLift = Math.sin(Math.PI * s);
     isSwing = true;
   } else {
-    // 接地フェーズ (等速 + コサイン)
+    // 接地フェーズ (等速)
     const s = (u - params.swingDuty) / (1.0 - params.swingDuty);
-    normYaw = (1.0 - params.stanceSmooth) * (1.0 - 2.0 * s) + params.stanceSmooth * Math.cos(Math.PI * s);
+    normYaw = 1.0 - 2.0 * s;
     normLift = 0.0;
     isSwing = false;
   }
@@ -365,12 +355,9 @@ function calculateLegAngles(legIdx, currentPhase, speed, turn, rollTilt) {
   const sideSign = (legIdx % 2 === 0) ? +1.0 : -1.0;
   const legDrive = (speed + sideSign * turn) * normYaw;
 
-  // 体重移動 (ロール傾斜補正)
-  const legTilt = sideSign * rollTilt;
-
   // サーボ角度 (90度ニュートラル)
   const degYaw  = 90.0 + leg.yawDir  * (params.yawAmp * legDrive);
-  const degKnee = 90.0 + leg.kneeDir * (KNEE_STANCE + params.kneeLift * normLift + legTilt);
+  const degKnee = 90.0 + leg.kneeDir * (KNEE_STANCE + params.kneeLift * normLift);
 
   // 機体座標での足先位置 (x:前, y:左, z:上)
   // yaw物理角: ニュートラル角 + 振幅
@@ -390,30 +377,6 @@ function calculateLegAngles(legIdx, currentPhase, speed, turn, rollTilt) {
     isSwing,
     footPos: [footX, footY, footZ]
   };
-}
-
-const SHIFT_DUTY = 0.05; // 遊脚の前後で体重移動を出し入れする位相幅
-
-// 遊脚中は 1、その前後 SHIFT_DUTY でコサインで出し入れする重み
-function shiftWeight(u) {
-  const d = params.swingDuty;
-  if (u < d) return 1.0;
-  if (SHIFT_DUTY <= 0) return 0.0;
-  if (u < d + SHIFT_DUTY) return 0.5 * (1 + Math.cos(Math.PI * (u - d) / SHIFT_DUTY));
-  if (u >= 1.0 - SHIFT_DUTY) return 0.5 * (1 - Math.cos(Math.PI * (u - (1.0 - SHIFT_DUTY)) / SHIFT_DUTY));
-  return 0.0;
-}
-
-// 遊脚の反対側へ体を傾ける。足を上げる前に傾け終わっておく
-function calculateCurrentRollTilt(currentPhase) {
-  let t = 0.0;
-  for (let i = 0; i < 4; i++) {
-    let u = currentPhase + LEGS[i].offset;
-    if (u >= 1.0) u -= 1.0;
-    const tiltDir = (i % 2 === 0) ? -1.0 : +1.0;
-    t += tiltDir * shiftWeight(u);
-  }
-  return params.bodyTilt * Math.max(-1.0, Math.min(1.0, t));
 }
 
 // 支持多角形の最短距離 (安定余裕)
@@ -478,15 +441,13 @@ function loop(now) {
     if (phase >= 1.0) phase -= 1.0;
   }
 
-  const rollTilt = calculateCurrentRollTilt(phase);
-
   // 各脚の計算
   const legStates = [];
   const stancePts = [];
   let swingLegName = "None (4脚接地)";
 
   for (let i = 0; i < 4; i++) {
-    const state = calculateLegAngles(i, phase, params.speed, params.turn, rollTilt);
+    const state = calculateLegAngles(i, phase, params.speed, params.turn);
     legStates.push(state);
     if (!state.isSwing) {
       stancePts.push(state.footPos);
@@ -495,8 +456,8 @@ function loop(now) {
     }
   }
 
-  // 重心位置 (ロールによる移動)
-  const comOffset = [0, COM_H * Math.sin(rollTilt * Math.PI / 180.0)];
+  // 重心位置 (原点)
+  const comOffset = [0, 0];
 
   // ワールド座標更新 (接地脚の動きから胴体位置を積分)
   if (params.playing) {
@@ -531,7 +492,7 @@ function loop(now) {
   // 描画実行
   renderTopView(legStates, stancePts, comOffset);
   renderWorldView(legStates);
-  renderFrontView(legStates, rollTilt);
+  renderFrontView(legStates, 0.0);
   updateUI(legStates, swingLegName, comOffset, stancePts);
 
   requestAnimationFrame(loop);
@@ -804,7 +765,6 @@ bindSlider("sliderTurn", "turn", "valTurn");
 bindSlider("sliderCycle", "cycleSec", "valCycle", "s");
 bindSlider("sliderYawAmp", "yawAmp", "valYawAmp", "°");
 bindSlider("sliderKneeLift", "kneeLift", "valKneeLift", "°");
-bindSlider("sliderBodyTilt", "bodyTilt", "valBodyTilt", "°");
 bindSlider("sliderDuty", "swingDuty", "valDuty");
 
 document.getElementById("btnPlay").addEventListener("click", function() {

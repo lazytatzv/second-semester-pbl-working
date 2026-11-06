@@ -19,14 +19,11 @@ const LegConfig LEGS[4] = {
 };
 
 // 歩行パラメータ
-const float CYCLE_SEC     = 2.5f;
-const float YAW_AMP       = 24.0f; // 歩幅 [deg]
-const float KNEE_STANCE   = 25.0f; // 立ち姿勢のスネ開き角 [deg]
-const float KNEE_LIFT     = 48.0f; // 足上げ [deg] (約43mm上がる)
-const float SWING_DUTY    = 0.20f;
-const float STANCE_SMOOTH = 0.50f; // 0:等速 〜 1:コサイン
-const float BODY_TILT     = 4.0f;  // 体重移動 [deg]
-const float SHIFT_DUTY    = 0.05f; // 遊脚の前後で体重移動を出し入れする位相幅
+const float CYCLE_SEC   = 2.5f;
+const float YAW_AMP     = 24.0f; // 歩幅 [deg]
+const float KNEE_STANCE = 25.0f; // 立ち姿勢のスネ開き角 [deg]
+const float KNEE_LIFT   = 48.0f; // 足上げ [deg] (約43mm上がる)
+const float SWING_DUTY  = 0.20f;
 
 const uint16_t LOOP_DT_MS = 20;
 
