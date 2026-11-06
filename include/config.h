@@ -30,7 +30,7 @@ const float SHIFT_DUTY    = 0.05f; // 遊脚の前後で体重移動を出し入
 const uint16_t LOOP_DT_MS = 20;
 
 // サーボ
-const int   SERVO_MIN_PULSE = 110; // 0deg
-const int   SERVO_MAX_PULSE = 510; // 180deg
+const int   SERVO_MIN_PULSE = 120; // 0deg
+const int   SERVO_MAX_PULSE = 520; // 180deg
 const float NEUTRAL         = 90.0f;
 const long  BAUD_RATE       = 115200L;
