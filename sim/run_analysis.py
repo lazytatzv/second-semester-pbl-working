@@ -6,8 +6,8 @@ ph = np.linspace(0, 1, 500, endpoint=False)
 m = np.array([margin(p) for p in ph])
 three = m[~np.isnan(m)]
 
-print(f"CYCLE {CYCLE_SEC}s  YAW_AMP {YAW_AMP}°  KNEE_LIFT {KNEE_LIFT}°  "
-      f"SWING_DUTY {SWING_DUTY}  BODY_TILT {BODY_TILT}°")
+print(f"CYCLE {CYCLE_SEC}s  YAW_AMP {YAW_AMP}°  KNEE_STANCE {KNEE_STANCE}°  "
+      f"KNEE_LIFT {KNEE_LIFT}° (lift {LIFT_H:.1f}mm)  SWING_DUTY {SWING_DUTY}  BODY_TILT {BODY_TILT}°")
 print(f"3脚支持 {len(three) / len(ph):.0%} / 4脚接地 {1 - len(three) / len(ph):.0%}")
 print(f"安定余裕 min {three.min():.2f} mm / avg {three.mean():.2f} mm")
 

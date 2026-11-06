@@ -297,11 +297,14 @@
 
 <script>
 // =============================================================================
-// ロボット設定 (main.cpp と同一)
+// ロボット設定 (main.cpp と同一 / 実機寸法: 車体幅150mm, L1=60mm, L2=70mm)
 // =============================================================================
-const B = 40.0;       // 胴体ハーフ幅 [mm] (80x80mm)
-const L = 80.0;       // 脚リンク長 [mm]
-const LIFT_H = 28.0;  // 画面描画用 足上げスケール [mm]
+const B = 75.0;           // 胴体ハーフ幅 [mm] (150x150mm)
+const L1 = 60.0;          // hip -> knee [mm]
+const L2 = 70.0;          // knee -> 足先 [mm]
+const KNEE_STANCE = 25.0; // 立ち姿勢のスネ開き角 [deg]
+const L = L1 + L2 * Math.sin(KNEE_STANCE * Math.PI / 180.0);     // 水平リーチ (~89.6mm)
+const COM_H = L2 * Math.cos(KNEE_STANCE * Math.PI / 180.0);      // 重心高さ (~63.4mm)
 
 // 脚定義 (FL:前左, FR:前右, RL:後左, RR:後右)
 const LEGS = [
@@ -367,15 +370,17 @@ function calculateLegAngles(legIdx, currentPhase, speed, turn, rollTilt) {
 
   // サーボ角度 (90度ニュートラル)
   const degYaw  = 90.0 + leg.yawDir  * (params.yawAmp * legDrive);
-  const degKnee = 90.0 + leg.kneeDir * (params.kneeLift * normLift + legTilt);
+  const degKnee = 90.0 + leg.kneeDir * (KNEE_STANCE + params.kneeLift * normLift + legTilt);
 
   // 機体座標での足先位置 (x:前, y:左, z:上)
   // yaw物理角: ニュートラル角 + 振幅
   const fwdSign = (legIdx % 2 === 0) ? -1.0 : +1.0;
   const ang = leg.neutral + fwdSign * (params.yawAmp * legDrive * Math.PI / 180.0);
-  const footX = leg.base[0] + L * Math.cos(ang);
-  const footY = leg.base[1] + L * Math.sin(ang);
-  const footZ = LIFT_H * normLift;
+  const kneeDeg = KNEE_STANCE + params.kneeLift * normLift;
+  const reach = L1 + L2 * Math.sin(kneeDeg * Math.PI / 180.0);
+  const footX = leg.base[0] + reach * Math.cos(ang);
+  const footY = leg.base[1] + reach * Math.sin(ang);
+  const footZ = L2 * (Math.cos(KNEE_STANCE * Math.PI / 180.0) - Math.cos(kneeDeg * Math.PI / 180.0));
 
   return {
     degYaw,
@@ -490,8 +495,8 @@ function loop(now) {
     }
   }
 
-  // 重心位置 (ロールによる移動: H=40mm)
-  const comOffset = [0, 40.0 * Math.sin(rollTilt * Math.PI / 180.0)];
+  // 重心位置 (ロールによる移動)
+  const comOffset = [0, COM_H * Math.sin(rollTilt * Math.PI / 180.0)];
 
   // ワールド座標更新 (接地脚の動きから胴体位置を積分)
   if (params.playing) {
@@ -542,15 +547,15 @@ function renderTopView(legStates, stancePts, com) {
 
   ctx.save();
   ctx.translate(w / 2, h / 2);
-  const scale = Math.min(w, h) / 320.0;
+  const scale = Math.min(w, h) / 420.0;
   ctx.scale(scale, -scale); // +xが上(前), +yが左
 
   // グリッド
   ctx.strokeStyle = "#2e344f";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  for (let x = -150; x <= 150; x += 50) { ctx.moveTo(x, -150); ctx.lineTo(x, 150); }
-  for (let y = -150; y <= 150; y += 50) { ctx.moveTo(-150, y); ctx.lineTo(150, y); }
+  for (let x = -200; x <= 200; x += 50) { ctx.moveTo(x, -200); ctx.lineTo(x, 200); }
+  for (let y = -200; y <= 200; y += 50) { ctx.moveTo(-200, y); ctx.lineTo(200, y); }
   ctx.stroke();
 
   // 前進方向矢印
@@ -686,20 +691,20 @@ function renderFrontView(legStates, rollTilt) {
   ctx.clearRect(0, 0, w, h);
 
   ctx.save();
-  ctx.translate(w / 2, h * 0.7);
-  const scale = Math.min(w, h) / 220.0;
+  ctx.translate(w / 2, h * 0.75);
+  const scale = Math.min(w, h) / 380.0;
   ctx.scale(scale, -scale); // +yが上
 
   // 地面
   ctx.strokeStyle = "#565f89";
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(-150, 0); ctx.lineTo(150, 0);
+  ctx.moveTo(-200, 0); ctx.lineTo(200, 0);
   ctx.stroke();
 
   // ロール角で胴体を傾斜
   const rollRad = rollTilt * Math.PI / 180.0;
-  const bodyH = 40.0; // 地面からの高さ
+  const bodyH = COM_H; // 地面からの高さ
 
   ctx.save();
   ctx.translate(0, bodyH);
@@ -717,7 +722,7 @@ function renderFrontView(legStates, rollTilt) {
   ctx.restore(); // 傾き解除して足を描画
 
   // FL (左足)
-  const flX = -B - 40;
+  const flX = legStates[0].footPos[1] <= 0 ? -B - 60 : -legStates[0].footPos[1];
   const flZ = legStates[0].footPos[2];
   ctx.strokeStyle = LEGS[0].color;
   ctx.lineWidth = legStates[0].isSwing ? 2 : 4;
@@ -730,7 +735,7 @@ function renderFrontView(legStates, rollTilt) {
   ctx.stroke();
 
   // FR (右足)
-  const frX = B + 40;
+  const frX = -legStates[1].footPos[1];
   const frZ = legStates[1].footPos[2];
   ctx.strokeStyle = LEGS[1].color;
   ctx.lineWidth = legStates[1].isSwing ? 2 : 4;

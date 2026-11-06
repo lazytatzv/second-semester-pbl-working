@@ -6,6 +6,7 @@ import numpy as np
 
 CYCLE_SEC = 2.5
 YAW_AMP = 24.0
+KNEE_STANCE = 25.0  # 立ち姿勢のスネ開き角 [deg]
 KNEE_LIFT = 28.0
 SWING_DUTY = 0.20
 STANCE_SMOOTH = 0.50
@@ -14,11 +15,13 @@ SHIFT_DUTY = 0.05  # 遊脚の前後で体重移動を出し入れする位相�
 OFFSET = [0.00, 0.50, 0.25, 0.75]
 NAMES = ["FL", "FR", "RL", "RR"]
 
-# 機体形状 [mm] (仮の値)
-B = 40.0       # 付け根位置 (±B, ±B)
-L = 80.0       # 脚の水平リーチ
-LIFT_H = 28.0  # 足先の最大高さ (表示用)
-COM_H = 40.0   # 重心高さ
+# 機体形状 [mm] (実機寸法: 車体幅150mm, hip->knee 60mm, knee->足先 70mm)
+B = 75.0       # 付け根位置 (±B, ±B) ※前後長も150mmと仮定
+L1 = 60.0      # hip -> knee [mm]
+L2 = 70.0      # knee -> 足先 [mm]
+L = L1 + L2 * np.sin(np.radians(KNEE_STANCE))  # 立ち姿勢での水平リーチ (約89.6mm)
+COM_H = L2 * np.cos(np.radians(KNEE_STANCE))   # 立ち姿勢での膝・重心高さ (約63.4mm)
+LIFT_H = L2 * (np.cos(np.radians(KNEE_STANCE)) - np.cos(np.radians(KNEE_STANCE + KNEE_LIFT)))  # 最大足上げ高さ (約21.3mm)
 
 BASE = np.array([[B, B], [B, -B], [-B, B], [-B, -B]])
 NEUTRAL = np.radians([45, -45, 135, -135])
@@ -64,8 +67,11 @@ def leg_state(phase, i, speed=1.0, turn=0.0):
 def foot(phase, i, speed=1.0, turn=0.0):
     yaw, lift, swing = leg_state(phase, i, speed, turn)
     ang = NEUTRAL[i] + FWD_SIGN[i] * np.radians(YAW_AMP * yaw)
-    xy = BASE[i] + L * np.array([np.cos(ang), np.sin(ang)])
-    return xy, LIFT_H * lift, swing
+    knee_deg = KNEE_STANCE + KNEE_LIFT * lift
+    reach = L1 + L2 * np.sin(np.radians(knee_deg))
+    z = L2 * (np.cos(np.radians(KNEE_STANCE)) - np.cos(np.radians(knee_deg)))
+    xy = BASE[i] + reach * np.array([np.cos(ang), np.sin(ang)])
+    return xy, z, swing
 
 
 def tri_margin(pts, p=np.zeros(2)):

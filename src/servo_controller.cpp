@@ -23,7 +23,9 @@ void setLeg(uint8_t i, float yawDeg, float kneeDeg) {
 }
 
 void standby() {
-  for (uint8_t i = 0; i < 4; i++) setLeg(i, NEUTRAL, NEUTRAL);
+  for (uint8_t i = 0; i < 4; i++) {
+    setLeg(i, NEUTRAL, NEUTRAL + LEGS[i].kneeDir * KNEE_STANCE);
+  }
 }
 
 // 1本ずつ足を上げて前後に振る
@@ -37,11 +39,12 @@ void selfCheck() {
     Serial.print(F("Leg "));
     Serial.println(leg.name);
 
-    float knee = NEUTRAL + leg.kneeDir * 35.0f;
-    setLeg(i, NEUTRAL, knee);                       delay(400);
-    setLeg(i, NEUTRAL + leg.yawDir * 25.0f, knee);  delay(300);
-    setLeg(i, NEUTRAL - leg.yawDir * 25.0f, knee);  delay(300);
-    setLeg(i, NEUTRAL, NEUTRAL);                    delay(300);
+    float stanceKnee = NEUTRAL + leg.kneeDir * KNEE_STANCE;
+    float liftKnee   = stanceKnee + leg.kneeDir * 35.0f;
+    setLeg(i, NEUTRAL, liftKnee);                       delay(400);
+    setLeg(i, NEUTRAL + leg.yawDir * 25.0f, liftKnee);  delay(300);
+    setLeg(i, NEUTRAL - leg.yawDir * 25.0f, liftKnee);  delay(300);
+    setLeg(i, NEUTRAL, stanceKnee);                     delay(300);
   }
   Serial.println(F("--- Done ---"));
 }

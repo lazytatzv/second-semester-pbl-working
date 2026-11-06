@@ -70,7 +70,7 @@ void update(uint16_t dtMs) {
     float drive = (speed + side(i) * turn) * yaw;
     servo::setLeg(i,
       NEUTRAL + LEGS[i].yawDir  * YAW_AMP * drive,
-      NEUTRAL + LEGS[i].kneeDir * (KNEE_LIFT * lift + side(i) * tilt));
+      NEUTRAL + LEGS[i].kneeDir * (KNEE_STANCE + KNEE_LIFT * lift + side(i) * tilt));
   }
 }
 

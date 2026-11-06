@@ -21,6 +21,7 @@ const LegConfig LEGS[4] = {
 // 歩行パラメータ
 const float CYCLE_SEC     = 2.5f;
 const float YAW_AMP       = 24.0f; // 歩幅 [deg]
+const float KNEE_STANCE   = 25.0f; // 立ち姿勢のスネ開き角 [deg]
 const float KNEE_LIFT     = 28.0f; // 足上げ [deg]
 const float SWING_DUTY    = 0.20f;
 const float STANCE_SMOOTH = 0.50f; // 0:等速 〜 1:コサイン
