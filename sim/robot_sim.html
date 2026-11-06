@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2DOF 4脚ロボット 歩行シミュレータ</title>
+  <style>
+    :root {
+      --bg: #1a1b26;
+      --panel: #24283b;
+      --accent: #7aa2f7;
+      --text: #c0caf5;
+      --text-dim: #7982a9;
+      --success: #9ece6a;
+      --warn: #e0af68;
+      --danger: #f7768e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    header {
+      background: var(--panel);
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #3b4261;
+    }
+    header h1 { font-size: 1.1rem; color: var(--accent); }
+    header .status { font-size: 0.85rem; color: var(--text-dim); }
+
+    .main-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .views {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      gap: 10px;
+    }
+    .canvas-row {
+      display: flex;
+      flex: 1;
+      gap: 10px;
+    }
+    .canvas-box {
+      flex: 1;
+      background: var(--panel);
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid #3b4261;
+      display: flex;
+      flex-direction: column;
+    }
+    .canvas-box .title {
+      position: absolute;
+      top: 8px;
+      left: 10px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: var(--accent);
+      background: rgba(36, 40, 59, 0.8);
+      padding: 2px 8px;
+      border-radius: 4px;
+      z-index: 10;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .sidebar {
+      width: 320px;
+      background: var(--panel);
+      padding: 15px;
+      border-left: 1px solid #3b4261;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      overflow-y: auto;
+    }
+    .section-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      border-bottom: 1px solid #3b4261;
+      padding-bottom: 4px;
+    }
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+    }
+    .control-label span:last-child {
+      color: var(--accent);
+      font-family: monospace;
+    }
+    input[type=range] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+    button {
+      flex: 1;
+      padding: 8px 12px;
+      background: #3b4261;
+      color: var(--text);
+      border: none;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #4a537a; }
+    button.active { background: var(--accent); color: #1a1b26; font-weight: bold; }
+
+    .servo-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .servo-card {
+      background: #1e2233;
+      border: 1px solid #3b4261;
+      border-radius: 6px;
+      padding: 8px;
+      font-size: 0.75rem;
+    }
+    .servo-card.swing {
+      border-color: var(--warn);
+      background: #2b2838;
+    }
+    .servo-card .leg-name {
+      font-weight: bold;
+      color: var(--accent);
+      display: flex;
+      justify-content: space-between;
+    }
+    .servo-card .tag {
+      font-size: 0.65rem;
+      padding: 1px 4px;
+      border-radius: 3px;
+      background: #3b4261;
+    }
+    .servo-card.swing .tag {
+      background: var(--warn);
+      color: #1a1b26;
+    }
+
+    .telemetry {
+      font-family: monospace;
+      font-size: 0.75rem;
+      background: #1e2233;
+      padding: 8px;
+      border-radius: 6px;
+      line-height: 1.4;
+      border: 1px solid #3b4261;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🕷️ 4脚ロボット リアルタイム歩行シミュレータ</h1>
+  <div class="status">C++ CPG Algorithm Ver. 2.0 (Wave Gait)</div>
+</header>
+
+<div class="main-container">
+  <div class="views">
+    <div class="canvas-row">
+      <!-- 俯瞰ビュー (Top View) -->
+      <div class="canvas-box">
+        <div class="title">俯瞰ビュー (Top View / 支持多角形 & 足先軌道)</div>
+        <canvas id="topCanvas"></canvas>
+      </div>
+      <!-- ワールド進行ビュー (World Track View) -->
+      <div class="canvas-box">
+        <div class="title">ワールド進行ビュー (World Trail View)</div>
+        <canvas id="worldCanvas"></canvas>
+      </div>
+    </div>
+    <div class="canvas-row" style="flex: 0.85;">
+      <!-- 正面・チルトビュー (Front View / ロール体重移動) -->
+      <div class="canvas-box">
+        <div class="title">正面ビュー (Front View / 左右の体重移動 & 足の持ち上げ)</div>
+        <canvas id="frontCanvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="section-title">走行操作 (Controls)</div>
+    <div class="btn-row">
+      <button id="btnPlay" class="active">一時停止</button>
+      <button id="btnReset">リセット</button>
+    </div>
+    <div class="btn-row">
+      <button id="btnFwd">前進</button>
+      <button id="btnTurnL">左旋回</button>
+      <button id="btnTurnR">右旋回</button>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>前後進速度 (Speed)</span>
+        <span id="valSpeed">1.0</span>
+      </div>
+      <input type="range" id="sliderSpeed" min="-1.0" max="1.0" step="0.1" value="1.0">
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>旋回量 (Turn)</span>
+        <span id="valTurn">0.0</span>
+      </div>
+      <input type="range" id="sliderTurn" min="-1.0" max="1.0" step="0.1" value="0.0">
+    </div>
+
+    <div class="section-title">歩行パラメータ (main.cpp 連動)</div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>歩行周期 (CYCLE_SEC)</span>
+        <span id="valCycle">2.5s</span>
+      </div>
+      <input type="range" id="sliderCycle" min="1.0" max="5.0" step="0.1" value="2.5">
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Yaw振幅 / 歩幅 (YAW_AMP)</span>
+        <span id="valYawAmp">24°</span>
+      </div>
+      <input type="range" id="sliderYawAmp" min="10" max="35" step="1" value="24">
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>足上げ高さ (KNEE_LIFT)</span>
+        <span id="valKneeLift">28°</span>
+      </div>
+      <input type="range" id="sliderKneeLift" min="10" max="45" step="1" value="28">
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>体重移動量 (BODY_TILT)</span>
+        <span id="valBodyTilt">4.0°</span>
+      </div>
+      <input type="range" id="sliderBodyTilt" min="0" max="10" step="0.5" value="4.0">
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>遊脚比率 (SWING_DUTY)</span>
+        <span id="valDuty">0.20</span>
+      </div>
+      <input type="range" id="sliderDuty" min="0.15" max="0.25" step="0.01" value="0.20">
+    </div>
+
+    <div class="section-title">各脚サーボ角度 (Servo Telemetry)</div>
+    <div class="servo-cards" id="servoCards">
+      <!-- JSで動的更新 -->
+    </div>
+
+    <div class="section-title">安定性テレメトリ</div>
+    <div class="telemetry" id="telemetryBox">
+      Phase: 0.000<br>
+      Stability Margin: --- mm<br>
+      Body Pos: (0.0, 0.0)<br>
+      Active Swing: None
+    </div>
+  </div>
+</div>
+
+<script>
+// =============================================================================
+// ロボット設定 (main.cpp と同一)
+// =============================================================================
+const B = 40.0;       // 胴体ハーフ幅 [mm] (80x80mm)
+const L = 80.0;       // 脚リンク長 [mm]
+const LIFT_H = 28.0;  // 画面描画用 足上げスケール [mm]
+
+// 脚定義 (FL:前左, FR:前右, RL:後左, RR:後右)
+const LEGS = [
+  { name: "FL", chYaw: 0, chKnee: 1, yawDir: +1, kneeDir: +1, offset: 0.00, color: "#f7768e", base: [ B,  B], neutral:  45 * Math.PI / 180 },
+  { name: "FR", chYaw: 2, chKnee: 3, yawDir: -1, kneeDir: -1, offset: 0.50, color: "#7aa2f7", base: [ B, -B], neutral: -45 * Math.PI / 180 },
+  { name: "RL", chYaw: 4, chKnee: 5, yawDir: +1, kneeDir: +1, offset: 0.25, color: "#9ece6a", base: [-B,  B], neutral: 135 * Math.PI / 180 },
+  { name: "RR", chYaw: 6, chKnee: 7, yawDir: -1, kneeDir: -1, offset: 0.75, color: "#ff9e64", base: [-B, -B], neutral:-135 * Math.PI / 180 }
+];
+
+// 調整パラメータ (UI連動)
+let params = {
+  cycleSec: 2.5,
+  yawAmp: 24.0,
+  kneeLift: 28.0,
+  bodyTilt: 4.0,
+  swingDuty: 0.20,
+  stanceSmooth: 0.50,
+  speed: 1.0,
+  turn: 0.0,
+  playing: true
+};
+
+// 状態
+let phase = 0.0;
+let bodyPos = { x: 0, y: 0, heading: 0 }; // ワールド座標 [mm]
+let worldTrail = [];
+let footSteps = [[], [], [], []];
+let lastTime = performance.now();
+
+// =============================================================================
+// main.cpp と完全に一致する CPG 角度計算ロジック
+// =============================================================================
+function calculateLegAngles(legIdx, currentPhase, speed, turn, rollTilt) {
+  const leg = LEGS[legIdx];
+
+  let u = currentPhase + leg.offset;
+  if (u >= 1.0) u -= 1.0;
+
+  let normYaw = 0.0;
+  let normLift = 0.0;
+  let isSwing = false;
+
+  if (u < params.swingDuty) {
+    // 遊脚フェーズ
+    const s = u / params.swingDuty;
+    normYaw = -Math.cos(Math.PI * s);
+    normLift = Math.sin(Math.PI * s);
+    isSwing = true;
+  } else {
+    // 接地フェーズ (等速 + コサイン)
+    const s = (u - params.swingDuty) / (1.0 - params.swingDuty);
+    normYaw = (1.0 - params.stanceSmooth) * (1.0 - 2.0 * s) + params.stanceSmooth * Math.cos(Math.PI * s);
+    normLift = 0.0;
+    isSwing = false;
+  }
+
+  // 旋回合成
+  const sideSign = (legIdx % 2 === 0) ? +1.0 : -1.0;
+  const legDrive = (speed + sideSign * turn) * normYaw;
+
+  // 体重移動 (ロール傾斜補正)
+  const legTilt = sideSign * rollTilt;
+
+  // サーボ角度 (90度ニュートラル)
+  const degYaw  = 90.0 + leg.yawDir  * (params.yawAmp * legDrive);
+  const degKnee = 90.0 + leg.kneeDir * (params.kneeLift * normLift + legTilt);
+
+  // 機体座標での足先位置 (x:前, y:左, z:上)
+  // yaw物理角: ニュートラル角 + 振幅
+  const fwdSign = (legIdx % 2 === 0) ? -1.0 : +1.0;
+  const ang = leg.neutral + fwdSign * (params.yawAmp * legDrive * Math.PI / 180.0);
+  const footX = leg.base[0] + L * Math.cos(ang);
+  const footY = leg.base[1] + L * Math.sin(ang);
+  const footZ = LIFT_H * normLift;
+
+  return {
+    degYaw,
+    degKnee,
+    normYaw,
+    normLift,
+    isSwing,
+    footPos: [footX, footY, footZ]
+  };
+}
+
+function calculateCurrentRollTilt(currentPhase) {
+  for (let i = 0; i < 4; i++) {
+    let u = currentPhase + LEGS[i].offset;
+    if (u >= 1.0) u -= 1.0;
+    if (u < params.swingDuty) {
+      const weight = Math.sin(Math.PI * (u / params.swingDuty));
+      const tiltDir = (i % 2 === 0) ? -1.0 : +1.0;
+      return tiltDir * params.bodyTilt * weight;
+    }
+  }
+  return 0.0;
+}
+
+// 支持多角形の最短距離 (安定余裕)
+function calculateStabilityMargin(stancePts, com) {
+  if (stancePts.length < 3) return null;
+  // 重心から各辺への最短距離 (2D)
+  let minMargin = 1e9;
+  const n = stancePts.length;
+  for (let i = 0; i < n; i++) {
+    const a = stancePts[i];
+    const b = stancePts[(i + 1) % n];
+    const ex = b[0] - a[0];
+    const ey = b[1] - a[1];
+    const len = Math.hypot(ex, ey);
+    if (len < 1e-4) continue;
+    // 法線 (外向き)
+    const nx = -ey / len;
+    const ny = ex / len;
+    // 多角形の中心が内側にある向きに法線を調整
+    const midX = (a[0] + b[0]) / 2;
+    const midY = (a[1] + b[1]) / 2;
+    // 点と直線の符号付き距離
+    const dist = (com[0] - a[0]) * nx + (com[1] - a[1]) * ny;
+    minMargin = Math.min(minMargin, dist);
+  }
+  return Math.abs(minMargin); // 簡易近似
+}
+
+// =============================================================================
+// Canvas 描画関連
+// =============================================================================
+const topCanvas = document.getElementById("topCanvas");
+const topCtx = topCanvas.getContext("2d");
+
+const worldCanvas = document.getElementById("worldCanvas");
+const worldCtx = worldCanvas.getContext("2d");
+
+const frontCanvas = document.getElementById("frontCanvas");
+const frontCtx = frontCanvas.getContext("2d");
+
+function resizeCanvases() {
+  [topCanvas, worldCanvas, frontCanvas].forEach(c => {
+    c.width = c.parentElement.clientWidth;
+    c.height = c.parentElement.clientHeight;
+  });
+}
+window.addEventListener("resize", resizeCanvases);
+resizeCanvases();
+
+// 前回の接地足位置 (ワールド更新用)
+let prevStanceFeet = null;
+
+// =============================================================================
+// アニメーションループ
+// =============================================================================
+function loop(now) {
+  const dt = Math.min((now - lastTime) / 1000.0, 0.1);
+  lastTime = now;
+
+  if (params.playing) {
+    phase += dt / params.cycleSec;
+    if (phase >= 1.0) phase -= 1.0;
+  }
+
+  const rollTilt = calculateCurrentRollTilt(phase);
+
+  // 各脚の計算
+  const legStates = [];
+  const stancePts = [];
+  let swingLegName = "None (4脚接地)";
+
+  for (let i = 0; i < 4; i++) {
+    const state = calculateLegAngles(i, phase, params.speed, params.turn, rollTilt);
+    legStates.push(state);
+    if (!state.isSwing) {
+      stancePts.push(state.footPos);
+    } else {
+      swingLegName = `${LEGS[i].name} (遊脚)`;
+    }
+  }
+
+  // 重心位置 (ロールによる移動: H=40mm)
+  const comOffset = [0, 40.0 * Math.sin(rollTilt * Math.PI / 180.0)];
+
+  // ワールド座標更新 (接地脚の動きから胴体位置を積分)
+  if (params.playing) {
+    if (prevStanceFeet) {
+      let dx = 0, dy = 0, count = 0;
+      for (let i = 0; i < 4; i++) {
+        if (!legStates[i].isSwing && prevStanceFeet[i]) {
+          dx -= (legStates[i].footPos[0] - prevStanceFeet[i][0]);
+          dy -= (legStates[i].footPos[1] - prevStanceFeet[i][1]);
+          count++;
+        }
+      }
+      if (count > 0) {
+        // 機体ヘディング角の更新 (旋回)
+        const dYaw = (params.turn * 40.0 * (dt / params.cycleSec)) * (Math.PI / 180.0);
+        bodyPos.heading += dYaw;
+
+        const cosH = Math.cos(bodyPos.heading);
+        const sinH = Math.sin(bodyPos.heading);
+        const fwdX = (dx / count) * cosH - (dy / count) * sinH;
+        const fwdY = (dx / count) * sinH + (dy / count) * cosH;
+        bodyPos.x += fwdX;
+        bodyPos.y += fwdY;
+
+        worldTrail.push({ x: bodyPos.x, y: bodyPos.y });
+        if (worldTrail.length > 500) worldTrail.shift();
+      }
+    }
+    prevStanceFeet = legStates.map(s => (!s.isSwing ? [...s.footPos] : null));
+  }
+
+  // 描画実行
+  renderTopView(legStates, stancePts, comOffset);
+  renderWorldView(legStates);
+  renderFrontView(legStates, rollTilt);
+  updateUI(legStates, swingLegName, comOffset, stancePts);
+
+  requestAnimationFrame(loop);
+}
+
+// -----------------------------------------------------------------------------
+// 1. 俯瞰ビュー (Top View)
+// -----------------------------------------------------------------------------
+function renderTopView(legStates, stancePts, com) {
+  const ctx = topCtx;
+  const w = topCanvas.width, h = topCanvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  const scale = Math.min(w, h) / 320.0;
+  ctx.scale(scale, -scale); // +xが上(前), +yが左
+
+  // グリッド
+  ctx.strokeStyle = "#2e344f";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = -150; x <= 150; x += 50) { ctx.moveTo(x, -150); ctx.lineTo(x, 150); }
+  for (let y = -150; y <= 150; y += 50) { ctx.moveTo(-150, y); ctx.lineTo(150, y); }
+  ctx.stroke();
+
+  // 前進方向矢印
+  ctx.strokeStyle = "#7aa2f7";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, 0); ctx.lineTo(60, 0);
+  ctx.lineTo(50, 6); ctx.moveTo(60, 0); ctx.lineTo(50, -6);
+  ctx.stroke();
+
+  // 支持多角形 (接地脚の結線)
+  if (stancePts.length >= 3) {
+    ctx.fillStyle = "rgba(158, 206, 106, 0.25)";
+    ctx.strokeStyle = "rgba(158, 206, 106, 0.8)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(stancePts[0][0], stancePts[0][1]);
+    for (let i = 1; i < stancePts.length; i++) {
+      ctx.lineTo(stancePts[i][0], stancePts[i][1]);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // 胴体 (正方形)
+  ctx.strokeStyle = "#c0caf5";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(-B, -B, 2 * B, 2 * B);
+
+  // 4本の脚を描画
+  for (let i = 0; i < 4; i++) {
+    const leg = LEGS[i];
+    const st = legStates[i];
+    const foot = st.footPos;
+
+    // 付け根から足先への線
+    ctx.strokeStyle = leg.color;
+    ctx.lineWidth = st.isSwing ? 2 : 4;
+    ctx.beginPath();
+    ctx.moveTo(leg.base[0], leg.base[1]);
+    ctx.lineTo(foot[0], foot[1]);
+    ctx.stroke();
+
+    // 付け根関節
+    ctx.fillStyle = "#c0caf5";
+    ctx.beginPath();
+    ctx.arc(leg.base[0], leg.base[1], 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 足先
+    ctx.beginPath();
+    ctx.arc(foot[0], foot[1], st.isSwing ? 8 : 6, 0, Math.PI * 2);
+    if (st.isSwing) {
+      ctx.strokeStyle = leg.color;
+      ctx.lineWidth = 3;
+      ctx.stroke(); // 中空
+    } else {
+      ctx.fillStyle = leg.color;
+      ctx.fill();
+    }
+  }
+
+  // 重心 (COM)
+  ctx.fillStyle = "#f7768e";
+  ctx.beginPath();
+  ctx.arc(com[0], com[1], 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// -----------------------------------------------------------------------------
+// 2. ワールド進行ビュー (World Trail View)
+// -----------------------------------------------------------------------------
+function renderWorldView(legStates) {
+  const ctx = worldCtx;
+  const w = worldCanvas.width, h = worldCanvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  const scale = 0.55;
+  ctx.scale(scale, -scale);
+
+  // カメラをロボット中心に追従
+  ctx.translate(-bodyPos.x, -bodyPos.y);
+
+  // 軌跡 (Trail)
+  if (worldTrail.length > 1) {
+    ctx.strokeStyle = "#7aa2f7";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(worldTrail[0].x, worldTrail[0].y);
+    for (let i = 1; i < worldTrail.length; i++) {
+      ctx.lineTo(worldTrail[i].x, worldTrail[i].y);
+    }
+    ctx.stroke();
+  }
+
+  // ロボット本体のワールド描画
+  ctx.save();
+  ctx.translate(bodyPos.x, bodyPos.y);
+  ctx.rotate(bodyPos.heading);
+
+  // 胴体
+  ctx.strokeStyle = "#c0caf5";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-B, -B, 2 * B, 2 * B);
+
+  // 脚
+  for (let i = 0; i < 4; i++) {
+    const leg = LEGS[i];
+    const st = legStates[i];
+    ctx.strokeStyle = leg.color;
+    ctx.lineWidth = st.isSwing ? 2 : 3;
+    ctx.beginPath();
+    ctx.moveTo(leg.base[0], leg.base[1]);
+    ctx.lineTo(st.footPos[0], st.footPos[1]);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.restore();
+}
+
+// -----------------------------------------------------------------------------
+// 3. 正面ビュー (Front View / ロールチルト & リフト)
+// -----------------------------------------------------------------------------
+function renderFrontView(legStates, rollTilt) {
+  const ctx = frontCtx;
+  const w = frontCanvas.width, h = frontCanvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.save();
+  ctx.translate(w / 2, h * 0.7);
+  const scale = Math.min(w, h) / 220.0;
+  ctx.scale(scale, -scale); // +yが上
+
+  // 地面
+  ctx.strokeStyle = "#565f89";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-150, 0); ctx.lineTo(150, 0);
+  ctx.stroke();
+
+  // ロール角で胴体を傾斜
+  const rollRad = rollTilt * Math.PI / 180.0;
+  const bodyH = 40.0; // 地面からの高さ
+
+  ctx.save();
+  ctx.translate(0, bodyH);
+  ctx.rotate(rollRad);
+
+  // 胴体 (正面投影: 幅2B, 厚み20mm)
+  ctx.strokeStyle = "#c0caf5";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(-B, -10, 2 * B, 20);
+
+  // 前脚2本 (FL:左, FR:右)
+  const flFoot = legStates[0].footPos; // FL
+  const frFoot = legStates[1].footPos; // FR
+
+  ctx.restore(); // 傾き解除して足を描画
+
+  // FL (左足)
+  const flX = -B - 40;
+  const flZ = legStates[0].footPos[2];
+  ctx.strokeStyle = LEGS[0].color;
+  ctx.lineWidth = legStates[0].isSwing ? 2 : 4;
+  ctx.beginPath();
+  ctx.moveTo(-B * Math.cos(rollRad), bodyH - B * Math.sin(rollRad));
+  ctx.lineTo(flX, flZ);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(flX, flZ, legStates[0].isSwing ? 6 : 4, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // FR (右足)
+  const frX = B + 40;
+  const frZ = legStates[1].footPos[2];
+  ctx.strokeStyle = LEGS[1].color;
+  ctx.lineWidth = legStates[1].isSwing ? 2 : 4;
+  ctx.beginPath();
+  ctx.moveTo(B * Math.cos(rollRad), bodyH + B * Math.sin(rollRad));
+  ctx.lineTo(frX, frZ);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(frX, frZ, legStates[1].isSwing ? 6 : 4, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// -----------------------------------------------------------------------------
+// UI 更新 & イベントリスナー
+// -----------------------------------------------------------------------------
+const servoContainer = document.getElementById("servoCards");
+function initServoCards() {
+  servoContainer.innerHTML = LEGS.map((leg, i) => `
+    <div class="servo-card" id="cardLeg${i}">
+      <div class="leg-name">
+        <span>${leg.name}</span>
+        <span class="tag" id="tagLeg${i}">STANCE</span>
+      </div>
+      <div>Yaw: <b id="valYaw${i}">90°</b></div>
+      <div>Knee: <b id="valKnee${i}">90°</b></div>
+    </div>
+  `).join("");
+}
+initServoCards();
+
+function updateUI(legStates, swingLegName, com, stancePts) {
+  legStates.forEach((st, i) => {
+    const card = document.getElementById(`cardLeg${i}`);
+    const tag = document.getElementById(`tagLeg${i}`);
+    const valY = document.getElementById(`valYaw${i}`);
+    const valK = document.getElementById(`valKnee${i}`);
+
+    card.classList.toggle("swing", st.isSwing);
+    tag.textContent = st.isSwing ? "SWING" : "STANCE";
+    valY.textContent = `${st.degYaw.toFixed(1)}°`;
+    valK.textContent = `${st.degKnee.toFixed(1)}°`;
+  });
+
+  const margin = calculateStabilityMargin(stancePts, com);
+  document.getElementById("telemetryBox").innerHTML = `
+    Phase: <b>${phase.toFixed(3)}</b><br>
+    Stability Margin: <b>${margin ? margin.toFixed(1) : "---"} mm</b><br>
+    Body Pos: <b>(${bodyPos.x.toFixed(0)}, ${bodyPos.y.toFixed(0)})</b> mm<br>
+    Active Swing: <b>${swingLegName}</b>
+  `;
+}
+
+// スライダーイベント
+const bindSlider = (id, prop, labelId, suffix="", mult=1) => {
+  const el = document.getElementById(id);
+  const lbl = document.getElementById(labelId);
+  el.addEventListener("input", (e) => {
+    params[prop] = parseFloat(e.target.value) * mult;
+    lbl.textContent = e.target.value + suffix;
+  });
+};
+bindSlider("sliderSpeed", "speed", "valSpeed");
+bindSlider("sliderTurn", "turn", "valTurn");
+bindSlider("sliderCycle", "cycleSec", "valCycle", "s");
+bindSlider("sliderYawAmp", "yawAmp", "valYawAmp", "°");
+bindSlider("sliderKneeLift", "kneeLift", "valKneeLift", "°");
+bindSlider("sliderBodyTilt", "bodyTilt", "valBodyTilt", "°");
+bindSlider("sliderDuty", "swingDuty", "valDuty");
+
+document.getElementById("btnPlay").addEventListener("click", function() {
+  params.playing = !params.playing;
+  this.textContent = params.playing ? "一時停止" : "再生";
+  this.classList.toggle("active", params.playing);
+});
+document.getElementById("btnReset").addEventListener("click", () => {
+  bodyPos = { x: 0, y: 0, heading: 0 };
+  worldTrail = [];
+  phase = 0;
+});
+document.getElementById("btnFwd").addEventListener("click", () => {
+  params.speed = 1.0; params.turn = 0.0;
+  document.getElementById("sliderSpeed").value = 1.0;
+  document.getElementById("sliderTurn").value = 0.0;
+  document.getElementById("valSpeed").textContent = "1.0";
+  document.getElementById("valTurn").textContent = "0.0";
+});
+document.getElementById("btnTurnL").addEventListener("click", () => {
+  params.turn = -0.8;
+  document.getElementById("sliderTurn").value = -0.8;
+  document.getElementById("valTurn").textContent = "-0.8";
+});
+document.getElementById("btnTurnR").addEventListener("click", () => {
+  params.turn = 0.8;
+  document.getElementById("sliderTurn").value = 0.8;
+  document.getElementById("valTurn").textContent = "0.8";
+});
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
