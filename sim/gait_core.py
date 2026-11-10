@@ -8,6 +8,8 @@ YAW_AMP = 24.0
 KNEE_STANCE = 25.0  # 立ち姿勢のスネ開き角 [deg]
 KNEE_LIFT = 48.0    # 足上げ [deg] (約43mm上がる)
 SWING_DUTY = 0.20
+BODY_TILT = 5.0     # 体重移動 [deg]
+SHIFT_DUTY = 0.05   # 遊脚の前後で体重移動を出し入れする位相幅
 OFFSET = [0.00, 0.50, 0.25, 0.75]
 NAMES = ["FL", "FR", "RL", "RR"]
 
@@ -26,6 +28,23 @@ FWD_SIGN = np.array([-1, +1, -1, +1])  # 前へ振るときの yaw の向き
 
 def side(i):
     return 1.0 if i % 2 == 0 else -1.0
+
+
+def shift_weight(u):
+    if u < SWING_DUTY:
+        return 1.0
+    if SHIFT_DUTY <= 0:
+        return 0.0
+    if u < SWING_DUTY + SHIFT_DUTY:
+        return 0.5 * (1 + np.cos(np.pi * (u - SWING_DUTY) / SHIFT_DUTY))
+    if u >= 1.0 - SHIFT_DUTY:
+        return 0.5 * (1 - np.cos(np.pi * (u - (1.0 - SHIFT_DUTY)) / SHIFT_DUTY))
+    return 0.0
+
+
+def roll_tilt(phase):
+    t = sum(-side(i) * shift_weight((phase + OFFSET[i]) % 1.0) for i in range(4))
+    return BODY_TILT * float(np.clip(t, -1.0, 1.0))
 
 
 def leg_state(phase, i, speed=1.0, turn=0.0):
@@ -66,6 +85,7 @@ def tri_margin(pts, p=np.zeros(2)):
 
 def margin(phase):
     """3脚支持のときの安定余裕。4脚接地中は nan"""
+    com = np.array([0.0, COM_H * np.sin(np.radians(roll_tilt(phase)))])
     feet = [foot(phase, i) for i in range(4)]
     pts = np.array([xy for xy, z, _ in feet if z <= 2.0])
-    return tri_margin(pts) if len(pts) == 3 else np.nan
+    return tri_margin(pts, com) if len(pts) == 3 else np.nan
