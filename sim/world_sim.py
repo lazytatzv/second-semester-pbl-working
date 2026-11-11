@@ -59,6 +59,12 @@ for i in range(4):
 for n in range(0, N, int(CYCLE_SEC / DT / 2)):
     c = pos[n]
     a.add_patch(plt.Rectangle(c - B, 2 * B, 2 * B, fill=False, ec="gray", alpha=.5))
+    pts = feet_w[n, stance[n]]
+    if len(pts) >= 3:
+        cen = pts.mean(axis=0)
+        ang = np.arctan2(pts[:, 1] - cen[1], pts[:, 0] - cen[0])
+        a.add_patch(plt.Polygon(pts[np.argsort(ang)], closed=True, color="green", alpha=0.10))
+    a.plot(c[0], c[1], "r+", ms=6)
 a.set_aspect("equal"); a.legend(ncol=5, loc="upper left")
 a.set_title(f"World view: {CYCLES} cycles, advance {pos[-1,0]:.0f} mm, lateral drift {pos[-1,1]:.1f} mm")
 a.set_xlabel("x [mm]"); a.set_ylabel("y [mm]")
@@ -69,18 +75,33 @@ a.axhline(0, color="r", ls="--"); a.legend(); a.set_xlabel("time [s]")
 plt.tight_layout(); plt.savefig(os.path.join(out, "world.png"), dpi=100)
 
 # アニメーション(俯瞰・全体固定ビュー)
-fig, a = plt.subplots(figsize=(11, 4))
+fig, a = plt.subplots(figsize=(12, 4.5))
 a.set_xlim(-150, pos[:, 0].max() + 160); a.set_ylim(-170, 170); a.set_aspect("equal")
 a.plot(pos[:, 0], pos[:, 1], "k:", lw=.8)
-rect = a.add_patch(plt.Rectangle((0, 0), 2 * B, 2 * B, fill=False))
+poly = a.add_patch(plt.Polygon([[0, 0], [0, 0], [0, 0]], closed=True, color="green", alpha=0.25, label="Support polygon"))
+rect = a.add_patch(plt.Rectangle((0, 0), 2 * B, 2 * B, fill=False, ec="black", lw=1.2, label="Body"))
+com_dot = a.plot([], [], "r+", ms=11, mew=2.2, label="COG (body center)")[0]
 legl = [a.plot([], [], "-", color=cols[i], lw=2)[0] for i in range(4)]
 dots = [a.plot([], [], "o", color=cols[i], ms=8)[0] for i in range(4)]
 prints = [a.plot([], [], ".", color=cols[i], ms=4)[0] for i in range(4)]
 ttl = a.set_title("")
+a.legend(loc="upper left", ncol=3, fontsize=9)
 STEP = 4
 def upd(f):
     n = f * STEP
     rect.set_xy(pos[n] - B)
+    com_dot.set_data([pos[n, 0]], [pos[n, 1]])
+
+    # 支持多角形の頂点ソートと更新
+    pts = feet_w[n, stance[n]]
+    if len(pts) >= 3:
+        cen = pts.mean(axis=0)
+        ang = np.arctan2(pts[:, 1] - cen[1], pts[:, 0] - cen[0])
+        poly.set_xy(pts[np.argsort(ang)])
+        poly.set_visible(True)
+    else:
+        poly.set_visible(False)
+
     for i in range(4):
         c = BASE[i] + pos[n]
         legl[i].set_data([c[0], feet_w[n, i, 0]], [c[1], feet_w[n, i, 1]])
@@ -88,7 +109,9 @@ def upd(f):
         dots[i].set_markerfacecolor(cols[i] if stance[n, i] else "none")
         s = np.array([q for q in steps[i] if q[0] <= feet_w[n, i, 0] + 1e-9]) if steps[i] else np.empty((0, 2))
         if len(s): prints[i].set_data(s[:, 0], s[:, 1])
-    ttl.set_text(f"t={t[n]:.1f}s  x={pos[n,0]:.0f}mm  (hollow=swing)")
+
+    margin_str = f"margin={mg[n]:.1f}mm" if not np.isnan(mg[n]) else "4-leg stance"
+    ttl.set_text(f"t={t[n]:.1f}s  x={pos[n,0]:.0f}mm  {margin_str}  (green=support polygon, red+=COG)")
     return []
 FuncAnimation(fig, upd, frames=N // STEP, blit=False).save(
     os.path.join(out, "world.gif"), writer=PillowWriter(fps=25))
