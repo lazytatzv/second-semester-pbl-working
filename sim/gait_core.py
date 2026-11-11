@@ -10,7 +10,7 @@ KNEE_LIFT = 48.0    # 足上げ [deg] (約43mm上がる)
 SWING_DUTY = 0.20
 BODY_SHIFT_X = 4.0  # 前後重心スライド量 [deg]
 BODY_SHIFT_Y = 7.0  # 左右重心スライド量 [deg]
-COM_BIAS_X = -10.0  # 実機の重心オフセット [mm] (マイナスで後方寄り)
+COM_BIAS_X = -15.0  # 実機の重心オフセット [mm] (マイナスで後方寄り)
 OFFSET = [0.00, 0.50, 0.25, 0.75]
 NAMES = ["FL", "FR", "RL", "RR"]
 
