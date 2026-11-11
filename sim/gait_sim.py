@@ -40,7 +40,7 @@ a.set_title("yaw (solid) / lift (dashed) per leg"); a.set_xlabel("time [s]")
 
 a = ax[2]
 a.plot(t, mg); a.axhline(0, color="r", ls="--")
-a.set_title(f"Stability margin (COM at origin)  min={np.nanmin(mg):.1f} mm")
+a.set_title(f"Stability margin (COM x={COM_BIAS_X:+.0f}mm)  min={np.nanmin(mg):.1f} mm")
 a.set_xlabel("time [s]"); a.set_ylabel("distance to support edge [mm] (>0 = stable)")
 plt.tight_layout()
 out = os.path.dirname(os.path.abspath(__file__))
@@ -50,7 +50,7 @@ plt.savefig(os.path.join(out, "gait.png"), dpi=110)
 fig, a = plt.subplots(figsize=(6, 6))
 a.set_xlim(-60, 2.3 * L); a.set_ylim(-1.7 * L, 1.7 * L); a.set_aspect("equal")
 body = a.add_patch(plt.Rectangle((-B, -B), 2 * B, 2 * B, fill=False))
-a.plot(0, 0, "k+")
+a.plot(COM_BIAS_X, 0, "r+", ms=10, mew=2, label="COG")
 legs = [a.plot([], [], "-", color=cols[i], lw=2)[0] for i in range(4)]
 dots = [a.plot([], [], "o", color=cols[i], ms=9)[0] for i in range(4)]
 tri = a.fill([], [], alpha=.15, color="green")[0]

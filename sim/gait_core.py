@@ -10,6 +10,7 @@ KNEE_LIFT = 48.0    # 足上げ [deg] (約43mm上がる)
 SWING_DUTY = 0.20
 BODY_SHIFT_X = 4.0  # 前後重心スライド量 [deg]
 BODY_SHIFT_Y = 7.0  # 左右重心スライド量 [deg]
+COM_BIAS_X = -10.0  # 実機の重心オフセット [mm] (マイナスで後方寄り)
 OFFSET = [0.00, 0.50, 0.25, 0.75]
 NAMES = ["FL", "FR", "RL", "RR"]
 
@@ -87,4 +88,5 @@ def margin(phase):
     """3脚支持のときの安定余裕。4脚接地中は nan"""
     feet = [foot(phase, i) for i in range(4)]
     pts = np.array([xy for xy, z, _ in feet if z <= 2.0])
-    return tri_margin(pts, np.zeros(2)) if len(pts) == 3 else np.nan
+    com = np.array([COM_BIAS_X, 0.0])
+    return tri_margin(pts, com) if len(pts) == 3 else np.nan

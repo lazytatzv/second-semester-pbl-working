@@ -64,7 +64,7 @@ for n in range(0, N, int(CYCLE_SEC / DT / 2)):
         cen = pts.mean(axis=0)
         ang = np.arctan2(pts[:, 1] - cen[1], pts[:, 0] - cen[0])
         a.add_patch(plt.Polygon(pts[np.argsort(ang)], closed=True, color="green", alpha=0.10))
-    a.plot(c[0], c[1], "r+", ms=6)
+    a.plot(c[0] + COM_BIAS_X, c[1], "r+", ms=7, label="COG (actual)" if n == 0 else "")
 a.set_aspect("equal"); a.legend(ncol=5, loc="upper left")
 a.set_title(f"World view: {CYCLES} cycles, advance {pos[-1,0]:.0f} mm, lateral drift {pos[-1,1]:.1f} mm")
 a.set_xlabel("x [mm]"); a.set_ylabel("y [mm]")
@@ -80,7 +80,7 @@ a.set_xlim(-150, pos[:, 0].max() + 160); a.set_ylim(-170, 170); a.set_aspect("eq
 a.plot(pos[:, 0], pos[:, 1], "k:", lw=.8)
 poly = a.add_patch(plt.Polygon([[0, 0], [0, 0], [0, 0]], closed=True, color="green", alpha=0.25, label="Support polygon"))
 rect = a.add_patch(plt.Rectangle((0, 0), 2 * B, 2 * B, fill=False, ec="black", lw=1.2, label="Body"))
-com_dot = a.plot([], [], "r+", ms=11, mew=2.2, label="COG (body center)")[0]
+com_dot = a.plot([], [], "r+", ms=11, mew=2.2, label=f"COG (bias={COM_BIAS_X:+.0f}mm)")[0]
 legl = [a.plot([], [], "-", color=cols[i], lw=2)[0] for i in range(4)]
 dots = [a.plot([], [], "o", color=cols[i], ms=8)[0] for i in range(4)]
 prints = [a.plot([], [], ".", color=cols[i], ms=4)[0] for i in range(4)]
@@ -90,7 +90,7 @@ STEP = 4
 def upd(f):
     n = f * STEP
     rect.set_xy(pos[n] - B)
-    com_dot.set_data([pos[n, 0]], [pos[n, 1]])
+    com_dot.set_data([pos[n, 0] + COM_BIAS_X], [pos[n, 1]])
 
     # 支持多角形の頂点ソートと更新
     pts = feet_w[n, stance[n]]
