@@ -2,6 +2,7 @@
 
 Arduino Uno + PCA9685 サーボドライバで動く 4 脚クロール歩容ロボット。
 実機の寸法・サーボ負荷・課題仕様は [`docs/robot_spec.md`](docs/robot_spec.md) を参照。
+足の軌道生成と重心シフトの数理モデルは [`docs/gait_kinematics.md`](docs/gait_kinematics.md) を参照。
 
 ## 1. 書き込みとシリアル接続
 

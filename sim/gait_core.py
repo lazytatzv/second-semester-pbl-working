@@ -8,8 +8,8 @@ YAW_AMP = 24.0
 KNEE_STANCE = 25.0  # 立ち姿勢のスネ開き角 [deg]
 KNEE_LIFT = 48.0    # 足上げ [deg] (約43mm上がる)
 SWING_DUTY = 0.20
-BODY_TILT = 5.0     # 体重移動 [deg]
-SHIFT_DUTY = 0.05   # 遊脚の前後で体重移動を出し入れする位相幅
+BODY_SHIFT_X = 4.0  # 前後重心スライド量 [deg]
+BODY_SHIFT_Y = 7.0  # 左右重心スライド量 [deg]
 OFFSET = [0.00, 0.50, 0.25, 0.75]
 NAMES = ["FL", "FR", "RL", "RR"]
 
@@ -30,21 +30,20 @@ def side(i):
     return 1.0 if i % 2 == 0 else -1.0
 
 
-def shift_weight(u):
-    if u < SWING_DUTY:
-        return 1.0
-    if SHIFT_DUTY <= 0:
-        return 0.0
-    if u < SWING_DUTY + SHIFT_DUTY:
-        return 0.5 * (1 + np.cos(np.pi * (u - SWING_DUTY) / SHIFT_DUTY))
-    if u >= 1.0 - SHIFT_DUTY:
-        return 0.5 * (1 - np.cos(np.pi * (u - (1.0 - SHIFT_DUTY)) / SHIFT_DUTY))
-    return 0.0
+def x_sign(i):
+    return 1.0 if i in [0, 1] else -1.0
 
 
-def roll_tilt(phase):
-    t = sum(-side(i) * shift_weight((phase + OFFSET[i]) % 1.0) for i in range(4))
-    return BODY_TILT * float(np.clip(t, -1.0, 1.0))
+def y_sign(i):
+    return side(i)
+
+
+def yaw_body_shift(i, phase):
+    ix = x_sign(i)
+    iy = y_sign(i)
+    xs = -np.cos(4.0 * np.pi * (phase - 0.10))
+    ys = 1.4142 * np.cos(2.0 * np.pi * (phase - 0.475))
+    return -BODY_SHIFT_X * xs + (ix * iy) * (BODY_SHIFT_Y * ys)
 
 
 def leg_state(phase, i, speed=1.0, turn=0.0):
@@ -61,7 +60,8 @@ def leg_state(phase, i, speed=1.0, turn=0.0):
 
 def foot(phase, i, speed=1.0, turn=0.0):
     yaw, lift, swing = leg_state(phase, i, speed, turn)
-    ang = NEUTRAL[i] + FWD_SIGN[i] * np.radians(YAW_AMP * yaw)
+    yaw_shift = yaw_body_shift(i, phase)
+    ang = NEUTRAL[i] + FWD_SIGN[i] * np.radians(YAW_AMP * yaw + yaw_shift)
     knee_deg = KNEE_STANCE + KNEE_LIFT * lift
     reach = L1 + L2 * np.sin(np.radians(knee_deg))
     z = L2 * (np.cos(np.radians(KNEE_STANCE)) - np.cos(np.radians(knee_deg)))
@@ -85,7 +85,6 @@ def tri_margin(pts, p=np.zeros(2)):
 
 def margin(phase):
     """3脚支持のときの安定余裕。4脚接地中は nan"""
-    com = np.array([0.0, COM_H * np.sin(np.radians(roll_tilt(phase)))])
     feet = [foot(phase, i) for i in range(4)]
     pts = np.array([xy for xy, z, _ in feet if z <= 2.0])
-    return tri_margin(pts, com) if len(pts) == 3 else np.nan
+    return tri_margin(pts, np.zeros(2)) if len(pts) == 3 else np.nan
