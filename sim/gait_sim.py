@@ -2,6 +2,7 @@
 実行: python sim/gait_sim.py   -> sim/gait.png, sim/gait.gif を出力
 パラメータ・歩容式は gait_core.py。
 """
+import os
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
