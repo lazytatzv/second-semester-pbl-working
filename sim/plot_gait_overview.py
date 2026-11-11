@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""スライド用: 歩行フェーズ、関節軌道、足上げ運動学の3分割図を生成するスクリプト。
+"""スライド・論文用: 学術的で端正なデザインの歩容・軌道・運動学概要図。
 出力: docs/gait_overview.png
 """
 import os
@@ -12,54 +12,51 @@ import matplotlib.patches as patches
 # 日本語フォント設定
 plt.rcParams['font.family'] = 'Noto Sans CJK JP'
 plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 10
 
-fig, axes = plt.subplots(1, 3, figsize=(16, 5.2), gridspec_kw={'width_ratios': [1.1, 1.2, 1.1]})
+fig, axes = plt.subplots(1, 3, figsize=(15.5, 4.8), gridspec_kw={'width_ratios': [1.0, 1.15, 1.05]})
 fig.patch.set_facecolor('#ffffff')
 
-# 共通カラー
-cols = {"FL": "#d62728", "RR": "#ff7f0e", "FR": "#1f77b4", "RL": "#2ca02c"}
-names = ["FL", "RR", "FR", "RL"]
-offsets = [0.00, 0.25, 0.50, 0.75]  # 遊脚開始フェーズ
-
 # ==============================================================================
-# パネル 1: 歩行フェーズ (脚のタイミングと接地順)
+# (a) 歩行位相シーケンス (対角クロール)
 # ==============================================================================
 ax0 = axes[0]
-ax0.set_facecolor('#f8f9fa')
+ax0.set_facecolor('#ffffff')
+
+names = ["FL (前左)", "RR (後右)", "FR (前右)", "RL (後左)"]
+offsets = [0.00, 0.25, 0.50, 0.75]
 
 for idx, (name, off) in enumerate(zip(names, offsets)):
     y = 3 - idx
-    # 背景 (全域接地 = 薄いグレー)
-    ax0.barh(y, 1.0, left=0.0, height=0.55, color="#e9ecef", edgecolor="#ced4da", lw=1.2)
-    # 遊脚期間 (20% = カラーハイライト)
-    ax0.barh(y, 0.20, left=off, height=0.55, color=cols[name], alpha=0.85, edgecolor="black", lw=1.5,
-             label=f"{name} (空中)" if idx == 0 else "")
-    # ラベル
-    ax0.text(off + 0.10, y, f"遊脚 (空中)", ha="center", va="center", color="white", fontsize=9.5, fontweight="bold")
+    # 支持脚期 (接地 80%) : 薄いグレー
+    ax0.barh(y, 1.0, left=0.0, height=0.48, color="#f1f3f5", edgecolor="#868e96", lw=0.8)
+    # 遊脚期 (空中 20%) : 濃紺
+    ax0.barh(y, 0.20, left=off, height=0.48, color="#1c3d5a", edgecolor="#1c3d5a", lw=0.8)
+    ax0.text(off + 0.10, y, "遊脚", ha="center", va="center", color="#ffffff", fontsize=9)
 
 ax0.set_yticks([3, 2, 1, 0])
-ax0.set_yticklabels(["1. FL (前左)", "2. RR (後右)", "3. FR (前右)", "4. RL (後左)"], fontsize=11, fontweight="bold")
+ax0.set_yticklabels(names, fontsize=9.5)
 ax0.set_xlim(0, 1.0)
-ax0.set_xlabel("歩行サイクル位相 (0.0 〜 1.0) [1周期 = 2.5秒]", fontsize=10.5)
-ax0.set_title("① 歩行フェーズ (対角クロール順)", fontsize=13, fontweight="bold", pad=12)
+ax0.set_xticks([0.0, 0.25, 0.50, 0.75, 1.0])
+ax0.set_xlabel("歩行位相 phi (1周期 T = 2.5 s)", fontsize=9.5)
+ax0.set_title("(a) クロール歩容位相 (3脚支持率 80%)", fontsize=11, fontweight="bold", pad=10)
+ax0.grid(axis="x", ls=":", color="#ced4da", lw=0.7)
 
-# ガイド線
-for p in [0.25, 0.50, 0.75]:
-    ax0.axvline(p, color="#adb5bd", ls="--", lw=1.0)
-ax0.text(0.5, -0.7, "★ 常に「3本が接地(80%) ＋ 1本が空中(20%)」で安定", ha="center", fontsize=10.5,
-         fontweight="bold", color="#198754", bbox=dict(boxstyle="round,pad=0.4", fc="#d1e7dd", ec="#badbcc"))
+# 凡例代わりの注釈
+ax0.plot([], [], color="#1c3d5a", label="遊脚期 (Swing, 20%)")
+ax0.plot([], [], color="#f1f3f5", markeredgecolor="#868e96", label="支持脚期 (Stance, 80%)")
+ax0.legend(loc="upper right", fontsize=8.5, frameon=True, edgecolor="#ced4da")
 
 # ==============================================================================
-# パネル 2: 1歩の関節軌道 (サイン波・コサイン波)
+# (b) 関節角軌道 (1歩の正規化波形)
 # ==============================================================================
 ax1 = axes[1]
-ax1.set_facecolor('#f8f9fa')
+ax1.set_facecolor('#ffffff')
 
-u = np.linspace(0, 1.0, 300)
+u = np.linspace(0, 1.0, 400)
 yaw = np.zeros_like(u)
 lift = np.zeros_like(u)
 
-# 0〜0.2: 遊脚, 0.2〜1.0: 支持脚
 sw = u < 0.20
 s = u[sw] / 0.20
 yaw[sw] = -np.cos(np.pi * s)
@@ -70,94 +67,98 @@ tau = (u[st] - 0.20) / 0.80
 yaw[st] = 1.0 - 2.0 * tau
 lift[st] = 0.0
 
-# プロット
-l1, = ax1.plot(u, yaw, color="#0d6efd", lw=2.8, label="付け根 Yaw (前後スイング)")
-l2, = ax1.plot(u, lift, color="#dc3545", lw=2.8, ls="--", label="ヒザ Knee (足上げリフト)")
+ax1.plot(u, yaw, color="#0b4f6c", lw=2.0, label="付け根 Yaw (前後振り: -cos / 等速キック)")
+ax1.plot(u, lift, color="#b02a37", lw=2.0, ls="--", label="膝 Knee (足上げ: sin / 接地維持)")
 
-# 領域の塗り分け
-ax1.axvspan(0, 0.20, color="#cfe2ff", alpha=0.5, label="遊脚期 (空中 20%)")
-ax1.axvspan(0.20, 1.0, color="#e2e3e5", alpha=0.4, label="支持脚期 (地面 80%)")
+# 境界線
+ax1.axvline(0.20, color="#495057", ls="--", lw=0.9)
+ax1.text(0.10, -1.18, "遊脚 (空中)", ha="center", fontsize=8.5, color="#1c3d5a")
+ax1.text(0.60, -1.18, "支持脚 (地面蹴り出し)", ha="center", fontsize=8.5, color="#495057")
 
-ax1.axhline(0, color="#adb5bd", lw=0.8, ls=":")
+ax1.axhline(0, color="#ced4da", lw=0.7, ls="-")
 ax1.set_xlim(0, 1.0)
-ax1.set_ylim(-1.25, 1.35)
-ax1.set_xlabel("1脚の局所位相 (0.0 〜 1.0)", fontsize=10.5)
-ax1.set_ylabel("正規化指令値 (-1.0 〜 +1.0)", fontsize=10.5)
-ax1.set_title("② 関節の軌道生成 (サイン・コサイン波)", fontsize=13, fontweight="bold", pad=12)
-ax1.legend(loc="upper right", fontsize=9.2, framealpha=0.9)
-
-ax1.annotate("足を持ち上げ\n(sin波)", xy=(0.10, 1.0), xytext=(0.02, 1.15),
-             arrowprops=dict(arrowstyle="->", color="#dc3545", lw=1.5), fontsize=9.5, fontweight="bold", color="#dc3545")
-ax1.annotate("前へ素早く振る\n(-cos波)", xy=(0.10, 0.0), xytext=(0.22, 0.4),
-             arrowprops=dict(arrowstyle="->", color="#0d6efd", lw=1.5), fontsize=9.5, fontweight="bold", color="#0d6efd")
-ax1.annotate("地面を蹴って前進 (等速キック)", xy=(0.60, 0.0), xytext=(0.35, -0.85),
-             arrowprops=dict(arrowstyle="->", color="#495057", lw=1.5), fontsize=9.5, fontweight="bold", color="#212529")
+ax1.set_ylim(-1.3, 1.3)
+ax1.set_xticks([0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+ax1.set_xlabel("単脚の局所位相 u (0.0 〜 1.0)", fontsize=9.5)
+ax1.set_ylabel("正規化関節角 theta / theta_max", fontsize=9.5)
+ax1.set_title("(b) 単脚関節軌道 (滑らかな連続波形)", fontsize=11, fontweight="bold", pad=10)
+ax1.legend(loc="upper right", fontsize=8.5, frameon=True, edgecolor="#ced4da")
+ax1.grid(True, ls=":", color="#e9ecef", lw=0.7)
 
 # ==============================================================================
-# パネル 3: 運動学幾何図 (足上げ高さの計算)
+# (c) リンク運動学 (足先クリアランス幾何)
 # ==============================================================================
 ax2 = axes[2]
-ax2.set_facecolor('#f8f9fa')
+ax2.set_facecolor('#ffffff')
 
-L2 = 70.0  # スネ長 mm
-th_ground = 25.0   # 接地角 deg
-th_lift = 73.0     # 最高点角 deg (25 + 48)
+L2 = 70.0        # スネ長 mm
+th0 = 25.0       # 接地時開き角 deg
+d_th = 48.0      # リフト角 deg
+th1 = th0 + d_th # 最高点角 73 deg
 
-# 膝関節を原点とする
-knee_x, knee_y = 0.0, 75.0
+knee = np.array([0.0, 75.0])
 
-# 接地脚の足先 (25°)
-rad_g = np.radians(th_ground)
-foot_g_x = knee_x + L2 * np.sin(rad_g)
-foot_g_y = knee_y - L2 * np.cos(rad_g)
+# 接地足先 (25°)
+rad0 = np.radians(th0)
+foot0 = knee + np.array([L2 * np.sin(rad0), -L2 * np.cos(rad0)])
 
-# 最高点の足先 (73°)
-rad_l = np.radians(th_lift)
-foot_l_x = knee_x + L2 * np.sin(rad_l)
-foot_l_y = knee_y - L2 * np.cos(rad_l)
+# 最高点足先 (73°)
+rad1 = np.radians(th1)
+foot1 = knee + np.array([L2 * np.sin(rad1), -L2 * np.cos(rad1)])
 
-lift_h = foot_l_y - foot_g_y  # 42.97 mm
+dh = foot1[1] - foot0[1]  # 42.97 mm
 
-# 地面ライン
-ax2.axhline(foot_g_y, color="#6c757d", lw=2.5, ls="-")
-ax2.text(20, foot_g_y - 4.5, "地面 (Ground)", fontsize=9.5, color="#6c757d", fontweight="bold")
+# 地面
+ground_y = foot0[1]
+ax2.axhline(ground_y, color="#343a40", lw=1.2)
+ax2.text(-15, ground_y - 4.0, "地面 (Ground)", fontsize=8.5, color="#343a40")
 
-# スネの描画
-ax2.plot([knee_x, foot_g_x], [knee_y, foot_g_y], color="#495057", lw=3.5, label="接地時 (25°)")
-ax2.plot([knee_x, foot_l_x], [knee_y, foot_l_y], color="#dc3545", lw=3.5, label="最高点 (73°: +48°リフト)")
-ax2.plot(knee_x, knee_y, "o", color="#212529", ms=10)
-ax2.text(knee_x - 12, knee_y + 3, "ヒザ関節", fontsize=10, fontweight="bold")
-ax2.plot(foot_g_x, foot_g_y, "o", color="#495057", ms=8)
-ax2.plot(foot_l_x, foot_l_y, "o", color="#dc3545", ms=8)
+# 基準鉛直線
+ax2.plot([knee[0], knee[0]], [ground_y, knee[1]], color="#adb5bd", ls=":", lw=1.0)
+
+# リンク (スネ)
+ax2.plot([knee[0], foot0[0]], [knee[1], foot0[1]], color="#495057", lw=2.2, label=f"接地時 (theta_0 = {th0:.0f}°)")
+ax2.plot([knee[0], foot1[0]], [knee[1], foot1[1]], color="#b02a37", lw=2.2, label=f"最高点 (theta_1 = {th1:.0f}°)")
+
+# 関節シンボル
+ax2.plot(knee[0], knee[1], "o", color="#ffffff", markeredgecolor="#212529", markeredgewidth=1.8, ms=7)
+ax2.text(knee[0] - 5, knee[1] + 3.5, "Knee (膝)", fontsize=8.5)
+ax2.plot(foot0[0], foot0[1], "o", color="#495057", ms=5)
+ax2.plot(foot1[0], foot1[1], "o", color="#b02a37", ms=5)
 
 # 角度円弧
-arc_g = patches.Arc((knee_x, knee_y), 35, 35, angle=270, theta1=0, theta2=th_ground, color="#495057", lw=1.5)
-arc_l = patches.Arc((knee_x, knee_y), 50, 50, angle=270, theta1=th_ground, theta2=th_lift, color="#dc3545", lw=2.0)
-ax2.add_patch(arc_g); ax2.add_patch(arc_l)
-ax2.text(knee_x + 5, knee_y - 25, "25°", fontsize=9, color="#495057", fontweight="bold")
-ax2.text(knee_x + 18, knee_y - 22, "+48°\n(曲げ)", fontsize=9.5, color="#dc3545", fontweight="bold")
+arc0 = patches.Arc(knee, 38, 38, angle=270, theta1=0, theta2=th0, color="#495057", lw=1.0)
+arc1 = patches.Arc(knee, 52, 52, angle=270, theta1=th0, theta2=th1, color="#b02a37", lw=1.2)
+ax2.add_patch(arc0); ax2.add_patch(arc1)
+ax2.text(knee[0] + 5, knee[1] - 26, f"{th0:.0f}°", fontsize=8.5, color="#495057")
+ax2.text(knee[0] + 18, knee[1] - 22, f"+{d_th:.0f}°", fontsize=8.5, color="#b02a37", fontweight="bold")
+
+# スネ長さ注記
+mid0 = (knee + foot0) / 2
+ax2.text(mid0[0] - 14, mid0[1], f"L = {L2:.0f} mm", fontsize=8.0, color="#495057")
 
 # 高さの寸法線
-dim_x = 78.0
-ax2.plot([foot_l_x + 5, dim_x + 5], [foot_l_y, foot_l_y], color="#dc3545", ls=":", lw=1.2)
-ax2.plot([foot_g_x + 5, dim_x + 5], [foot_g_y, foot_g_y], color="#495057", ls=":", lw=1.2)
-ax2.annotate("", xy=(dim_x, foot_l_y), xytext=(dim_x, foot_g_y),
-             arrowprops=dict(arrowstyle="<->", color="#dc3545", lw=2.2))
-ax2.text(dim_x + 4, (foot_l_y + foot_g_y) / 2, f"h = 約 43 mm\n(足上げ高さ)", color="#dc3545",
-         va="center", fontsize=11, fontweight="bold")
+dim_x = 76.0
+ax2.plot([foot1[0] + 3, dim_x + 3], [foot1[1], foot1[1]], color="#ced4da", ls="--", lw=0.8)
+ax2.plot([foot0[0] + 3, dim_x + 3], [foot0[1], foot0[1]], color="#ced4da", ls="--", lw=0.8)
+ax2.annotate("", xy=(dim_x, foot1[1]), xytext=(dim_x, foot0[1]),
+             arrowprops=dict(arrowstyle="<->", color="#b02a37", lw=1.5))
+ax2.text(dim_x + 3.5, (foot1[1] + foot0[1]) / 2, f"Delta h = {dh:.1f} mm\n(足上げクリアランス)",
+         color="#b02a37", va="center", fontsize=8.5, fontweight="bold")
 
-ax2.set_xlim(-25, 115)
-ax2.set_ylim(-5, 90)
+# 幾何式 (端正な数式表記)
+calc_eq = r"$\Delta h = L_2 (\cos 25^\circ - \cos 73^\circ) \approx 43.0\ \mathrm{mm}$"
+ax2.text(35, 12, calc_eq, ha="center", fontsize=9.0, color="#212529",
+         bbox=dict(boxstyle="square,pad=0.4", fc="#ffffff", ec="#ced4da", lw=0.8))
+
+ax2.set_xlim(-20, 115)
+ax2.set_ylim(-8, 88)
 ax2.set_aspect("equal")
 ax2.axis("off")
-ax2.set_title("③ 運動学 (足上げ高さの幾何計算)", fontsize=13, fontweight="bold", pad=12)
-
-# 計算式ボックス
-calc_text = "h = 70 × (cos 25° - cos 73°)\n  = 70 × (0.906 - 0.292) ≃ 43 mm"
-ax2.text(45, 15, calc_text, ha="center", fontsize=10.2, fontweight="bold",
-         color="#212529", bbox=dict(boxstyle="round,pad=0.5", fc="#fff3cd", ec="#ffe69c"))
+ax2.set_title("(c) 膝関節の幾何と足上げ高さ", fontsize=11, fontweight="bold", pad=10)
+ax2.legend(loc="upper left", fontsize=8.0, frameon=True, edgecolor="#ced4da")
 
 plt.tight_layout()
 out_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "gait_overview.png")
-plt.savefig(out_path, dpi=150, bbox_inches="tight")
+plt.savefig(out_path, dpi=180, bbox_inches="tight")
 print(f"Saved: {out_path}")
